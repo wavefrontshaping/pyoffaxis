@@ -7,3 +7,9 @@ A Python library for complex field retrieval using off-axis holography.
 ```bash
 pip install git+https://github.com/wavefrontshaping/pyoffaxis.git
 ```
+
+Optionally, install with `Cuda` GPU support (using `cupy`) with
+
+```bash
+pip install git+https://github.com/wavefrontshaping/pyoffaxis.git .[gpu]
+```
