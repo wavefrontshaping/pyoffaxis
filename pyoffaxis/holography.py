@@ -15,6 +15,8 @@ from scipy import ndimage as ndi
 from scipy.ndimage.measurements import center_of_mass, label
 from skimage.feature import peak_local_max
 from skimage.filters import threshold_otsu
+
+from zoomfft2d import ZoomFFT2D
 import skimage.morphology as skm
 from scipy.ndimage import distance_transform_edt
 import os
@@ -27,8 +29,6 @@ from .stack_functions import (
     stack_pad,
     stack_crop,
 )
-
-from .zft import ZoomFFT2D
 
 try:
     import cupy as cp
@@ -60,11 +60,9 @@ def trim_image(image, threshold):
 
 def get_disk_mask(res, radius, center=None):
 
-    # res = res[::-1]
-    if center == None:
+    if center is None:
         center = [s / 2 - 0.5 for s in res]
 
-    mask = np.zeros(res)
     X, Y = np.meshgrid(np.arange(res[1]), np.arange(res[0]))
     return (X - center[1]) ** 2 + (Y - center[0]) ** 2 < radius**2
 
@@ -89,10 +87,8 @@ class Holography:
         use_gpu=False,
     ):
         # Just grab the dimension of the images you want to process
-        # self.dim = holo_stack.shape[-2:]
         self.dim = dim
         self.padding = padding
-        # self.holo_stack = holo_stack.astype(complex)
         self.fourier_mask = {}
         self.sigma_noise = sigma_noise
         self.display = display
@@ -107,8 +103,8 @@ class Holography:
         self.bias_ref = None
 
     def removeReferenceAmplitude(self, img_stack, do_filter_ref):
-        # Thikhonov regularization
 
+        # Thikhonov regularization
         sigma = self.sigma_noise if self.sigma_noise else 0
         # sigma = 0 means no regularization, prone to errors!
 
@@ -138,20 +134,6 @@ class Holography:
             self.fourier_mask = mask_parameters
         else:
             raise TypeError("mask_paramters must be a dict.")
-
-    # def generateMask(self):
-
-    # c = np.arange(self.dim[1]+2*self.padding)
-    # r = np.arange(self.dim[0]+2*self.padding)
-    # Col, Row = np.meshgrid(c,r)
-    # if self.mask_shape == 'disk':
-    #     r_cen, c_cen = self.fourier_mask['center']
-    #     self.fourier_mask['shape'] = 'disk'
-    #     self.fourier_mask['mask'] = np.fft.ifftshift(
-    #         (Row-r_cen)**2 + (Col-c_cen)**2 < self.fourier_mask['size']**2
-    #         )
-    # else:
-    #     raise Exception('Invalid shape.')
 
     def calibrate(
         self,
@@ -184,10 +166,6 @@ class Holography:
         new_res = fft_stack.shape[-2:]  # [s + 2*self.padding for s in self.dim]
         center = (self.dim[0] / 2 + self.padding, self.dim[1] / 2 + self.padding)
 
-        padding_coeff = [(s + self.padding) / s for s in self.dim]
-
-        #         neighborhood_size_filter = 10 # for the maximum filter
-
         # mask to remove the spatial frequencies close to DC
         radius_mask = np.min(new_res) * radius_mask_coeff
         mask_ft = 1 - get_disk_mask(new_res, radius=radius_mask, center=center)
@@ -210,20 +188,10 @@ class Holography:
         )
 
         # Begin the image processing pipline
-        # data_max = filters.maximum_filter(np.log(mean_FT + 0.000001), neighborhood_size)
-        # data_max = data_max - np.min(data_max)
-
-        # mask_thresh = np.abs(data_max) >  threshold_yen(np.abs(data_max))
-
         mask_thresh = np.abs(blurred_FT) > threshold_coeff * threshold_yen(
             np.abs(blurred_FT)
         )
         distance = ndi.distance_transform_edt(mask_thresh)
-        # distance *= mask_ft
-
-        # plt.figure()
-        # plt.imshow(data_max)
-        # plt.colorbar()
 
         if self.display:
             plt.figure()
@@ -260,7 +228,7 @@ class Holography:
         self.fourier_mask["center"] = [row_peaks[pos_first], col_peaks[pos_first]]
         self.fourier_mask["size"] = distance[
             self.fourier_mask["center"][0], self.fourier_mask["center"][1]
-        ]  # *frac_window
+        ]
 
         self.fourier_mask["size"] *= mask_ratio
 
@@ -298,8 +266,6 @@ class Holography:
         delta_freq_x = 2 * trimmed_mask.shape[0] * 2 / new_res[0]
         delta_freq_y = 2 * trimmed_mask.shape[1] * 2 / new_res[1]
         self.fourier_mask["delta_freqs"] = [delta_freq_x, delta_freq_y]
-
-        # self.generateMask()
 
         # Plot the results so that the user can verify the right peak was
         # selected
@@ -400,8 +366,11 @@ class Holography:
 
         N = self.dim[0]
         self.zft = ZoomFFT2D([N] * 2, [N_fft] * 2, f_center, f_range)
+
+        if_range = [N / N_fft * f for f in f_range]
+
         self.izft = ZoomFFT2D(
-            [N_fft] * 2, [N_out] * 2, [0, 0], [1, 1], direction="backward"
+            [N_fft] * 2, [N_out] * 2, [0, 0], if_range, direction="backward"
         )
         self.filter_ref_zoom()
         self.is_zoom_fft_initialized = True
@@ -409,7 +378,7 @@ class Holography:
     def getFieldStackZoom(
         self,
         img_stack,
-        N_out=80,
+        N_out=None,
         compensate_for_ref=True,
         compensate_for_bias=False,
         do_filter_ref=True,
@@ -417,6 +386,12 @@ class Holography:
         """
         Compute the complex field stack using zoom FFT.
         """
+        if N_out is None:
+            if self.reference is not None:
+                N_out = self.reference.shape[0]
+            else:
+                raise ValueError("N_out must be specified if no reference is provided")
+
         if not self.is_zoom_fft_initialized:
             self.initializeZoomFFT(N_out)
 
@@ -462,8 +437,6 @@ class Holography:
 
         # Thikhonov regularization
         sigma = self.sigma_noise if self.sigma_noise else 0
-        # sigma = 0 means no regularization, prone to errors!
-        # inverse_ref = np.sqrt(ref) / (sigma + ref)
         inverse_ref = 1.0 / (sigma + np.sqrt(ref))
 
         if self.use_gpu:
