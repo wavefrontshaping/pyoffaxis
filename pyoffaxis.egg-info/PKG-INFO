@@ -1,0 +1,25 @@
+Metadata-Version: 2.4
+Name: pyoffaxis
+Version: 0.1.0
+Summary: A pure Python package for off-axis holography and related image processing.
+Author: Sébastien M. Popoff, Maxime W. Matthès, Rodrigo Gutierrez Cuevas
+License: MIT
+Project-URL: Homepage, https://github.com/wavefrontshaping/pyoffaxis
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+Requires-Dist: numpy>=2.0
+Requires-Dist: matplotlib>=3.0
+Requires-Dist: scipy>=1.4
+Requires-Dist: scikit-image>=0.16
+Requires-Dist: pyfftw>=0.12
+Requires-Dist: numba>=0.50
+Provides-Extra: gpu
+Requires-Dist: cupy>=13.0; extra == "gpu"
+
+# pyoffaxis
+
+A Python library for complex field retrieval using off-axis holography.
+

@@ -1,0 +1,9 @@
+numpy>=2.0
+matplotlib>=3.0
+scipy>=1.4
+scikit-image>=0.16
+pyfftw>=0.12
+numba>=0.50
+
+[gpu]
+cupy>=13.0
